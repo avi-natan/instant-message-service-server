@@ -10,6 +10,9 @@ import java.net.Socket;
 public class ClientHandler implements Runnable {
 	
 	private IMSServer server;
+	private String username;
+	private String email;
+	private String password;
 	
 	private Socket socket;
 	
@@ -21,8 +24,11 @@ public class ClientHandler implements Runnable {
 	public ClientHandler() {}
 
 	
-	public ClientHandler(IMSServer server, Socket socket) {
+	public ClientHandler(IMSServer server, String username, String email, String password, Socket socket) {
 		this.server = server;
+		this.username = username;
+		this.email = email;
+		this.password = password;
 		this.socket = socket;
 		try {
 			this.in = this.socket.getInputStream();
@@ -36,7 +42,7 @@ public class ClientHandler implements Runnable {
 	@Override
 	public void run() {
 		try {
-			socket.getOutputStream().write("Welcome\n".getBytes());
+			socket.getOutputStream().write(("Welcome " + this.username + "\n").getBytes());
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -69,8 +75,66 @@ public class ClientHandler implements Runnable {
 			e.printStackTrace();
 		}
 		
-		server.removeClient(this);
+		//server.removeClient(this);
 
 	}
+	
+	public void register() {
+		BufferedReader br = new BufferedReader(new InputStreamReader(in));
+		String line;
+		
+		try {
+			line = br.readLine();
+			
+			byte[] b = line.getBytes();
+			if(line != null && b[0] != -56) {
+				String[] initParams = splitInitParams(b);
+				this.username = initParams[0];
+				this.email = initParams[1];
+				this.password = initParams[2];
+				
+				if(server.hasUserName(this.username) || server.hasEmail(this.email)) {
+					// fail the register
+					out.write("FAIL\n".getBytes());
+					in.close();
+					out.close();
+					socket.close();
+				} else {
+					// register this
+					out.write("SUCCESS\n".getBytes());
+					server.addToClients(this);
+					new Thread(this).start();
+				}
+			} else {
+				terminated = true;
+				byte[] bb = {-56, 10};
+				out.write(bb);
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+			terminated = true;
+		}
+	}
+	
+	private String[] splitInitParams(byte[] initParams) {
+		String[] splitted = new String[3];
+		int stringNum = 0;
+		StringBuilder sb = new StringBuilder();
+		byte[] b = {-55};
+		
+		for(int i = 1; i < initParams.length; i++) {
+			if(initParams[i] == b[0]) {
+				splitted[stringNum++] = sb.toString();
+				sb = new StringBuilder();
+			} else {
+				sb.append((char) initParams[i]);
+			}
+		}
+		splitted[stringNum] = sb.toString();
+		return splitted;
+	}
+	
+	public String getUsername() { return this.username;	}
+	public String getEmail() { return this.email; }
 
 }
