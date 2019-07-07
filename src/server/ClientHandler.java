@@ -79,7 +79,7 @@ public class ClientHandler implements Runnable {
 
 	}
 	
-	public void register() {
+	public void handshake() {
 		BufferedReader br = new BufferedReader(new InputStreamReader(in));
 		String line;
 		
@@ -89,21 +89,10 @@ public class ClientHandler implements Runnable {
 			byte[] b = line.getBytes();
 			if(line != null && b[0] != -56) {
 				String[] initParams = splitInitParams(b);
-				this.username = initParams[0];
-				this.email = initParams[1];
-				this.password = initParams[2];
-				
-				if(server.hasUserName(this.username) || server.hasEmail(this.email)) {
-					// fail the register
-					out.write("FAIL\n".getBytes());
-					in.close();
-					out.close();
-					socket.close();
+				if(initParams[0].equals("REGISTER")) {
+					register(initParams);
 				} else {
-					// register this
-					out.write("SUCCESS\n".getBytes());
-					server.addToClients(this);
-					new Thread(this).start();
+					login(initParams);
 				}
 			} else {
 				terminated = true;
@@ -116,11 +105,68 @@ public class ClientHandler implements Runnable {
 		}
 	}
 	
+	private void register(String[] initParams) {
+		try {
+			this.username = initParams[1];
+			this.email = initParams[2];
+			this.password = initParams[3];
+			
+			if(server.hasUserName(this.username) || server.hasEmail(this.email)) {
+				// fail the register
+				out.write("FAIL\n".getBytes());
+				in.close();
+				out.close();
+				socket.close();
+			} else {
+				// register this
+				out.write("SUCCESS\n".getBytes());
+				server.addToClients(this);
+				new Thread(this).start();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+			terminated = true;
+		}
+	}
+	
+	private void login(String[] initParams) {
+		try {
+			ClientHandler existingClient = this.server.getClientHandler(initParams[1], initParams[3]);
+			
+			if(existingClient == null) {
+				// fail to login
+				out.write("FAIL\n".getBytes());
+				in.close();
+				out.close();
+				socket.close();
+			} else {
+				out.write("SUCCESS\n".getBytes());
+				existingClient.setSocket(this.socket);
+				existingClient.setInputStream(this.in);
+				existingClient.setOutputStream(this.out);
+				existingClient.setNotTerminated();
+				new Thread(existingClient).start();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+			terminated = true;
+		}
+		
+	}
+	
 	private String[] splitInitParams(byte[] initParams) {
-		String[] splitted = new String[3];
+		int stringsCount = 0;
+		byte[] b = {-55};
+		
+		for(int i = 0; i < initParams.length; i++) {
+			if(initParams[i] == b[0]) {
+				stringsCount++;
+			}
+		}
+		
+		String[] splitted = new String[stringsCount];
 		int stringNum = 0;
 		StringBuilder sb = new StringBuilder();
-		byte[] b = {-55};
 		
 		for(int i = 1; i < initParams.length; i++) {
 			if(initParams[i] == b[0]) {
@@ -136,5 +182,12 @@ public class ClientHandler implements Runnable {
 	
 	public String getUsername() { return this.username;	}
 	public String getEmail() { return this.email; }
+	public String getPassword() { return this.password; }
+	public boolean isTerminated() { return this.terminated; }
+	
+	public void setSocket(Socket s) { this.socket = s; }
+	public void setInputStream(InputStream in) { this.in = in; }
+	public void setOutputStream(OutputStream out) {this.out = out; };
+	public void setNotTerminated() { this.terminated = false; }
 
 }

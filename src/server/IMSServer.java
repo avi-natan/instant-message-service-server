@@ -37,7 +37,7 @@ public class IMSServer extends Thread {
 			while((clientSocket = server.accept()) != null) {
 				System.out.println("new connection!");
 				ClientHandler c = new ClientHandler(this, "", "", "", clientSocket);
-				c.register();
+				c.handshake();
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -49,7 +49,6 @@ public class IMSServer extends Thread {
 		System.out.println("removing");
 		registeredClients.remove(c);
 	}
-	
 	
 	public boolean hasUserName(String username) {
 		for(ClientHandler ch : registeredClients) {
@@ -67,6 +66,15 @@ public class IMSServer extends Thread {
 	
 	public void addToClients(ClientHandler clientHandler) {
 		registeredClients.add(clientHandler);
+	}
+	
+	public ClientHandler getClientHandler(String username, String password) {
+		for(ClientHandler ch : registeredClients) {
+			if(ch.getUsername().equals(username) && ch.getPassword().equals(password) && ch.isTerminated()) {
+				return ch;
+			}
+		}
+		return null;
 	}
 
 	
