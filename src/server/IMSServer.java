@@ -6,6 +6,8 @@ import java.net.Socket;
 import java.util.HashSet;
 import java.util.Set;
 
+import server.networking.ClientHandler;
+
 public class IMSServer extends Thread {
 	
 	private Set<ClientHandler> registeredClients = new HashSet<>();
@@ -68,9 +70,9 @@ public class IMSServer extends Thread {
 		registeredClients.add(clientHandler);
 	}
 	
-	public ClientHandler getClientHandler(String username, String password) {
+	public ClientHandler getClientHandler(String username) {
 		for(ClientHandler ch : registeredClients) {
-			if(ch.getUsername().equals(username) && ch.getPassword().equals(password) && ch.isTerminated()) {
+			if(ch.getUsername().equals(username)) {
 				return ch;
 			}
 		}

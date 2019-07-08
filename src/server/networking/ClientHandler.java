@@ -1,4 +1,4 @@
-package server;
+package server.networking;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -6,6 +6,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.util.HashSet;
+import java.util.Set;
+
+import server.IMSServer;
+import server.protocol.IMSProtocol;
 
 public class ClientHandler implements Runnable {
 	
@@ -20,6 +25,8 @@ public class ClientHandler implements Runnable {
 	private OutputStream out;
 	
 	private boolean terminated;
+	
+	private Set<ClientHandler> friends;
 	
 	public ClientHandler() {}
 
@@ -37,12 +44,17 @@ public class ClientHandler implements Runnable {
 			e.printStackTrace();
 		}
 		this.terminated = false;
+		this.friends = new HashSet<>();
 	}
 
 	@Override
 	public void run() {
 		try {
-			socket.getOutputStream().write(("Welcome " + this.username + "\n").getBytes());
+			String[] welcomeMessage = new String[2];
+			welcomeMessage[0] = "WELCOME";
+			welcomeMessage[1] = "Welcome " + this.username + "!";
+			byte[] welcomeMessageBytes = IMSProtocol.messageToBytes(welcomeMessage);
+			out.write(welcomeMessageBytes);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -54,8 +66,8 @@ public class ClientHandler implements Runnable {
 				line = br.readLine();
 				byte[] b = line.getBytes();
 				if(line != null && b[0] != -56) {
-					String s = "You said: " + line;
-					out.write(s.getBytes());
+					String[] message = IMSProtocol.bytesToMessage(b);
+					processMessage(message);
 				} else {
 					terminated = true;
 					byte[] bb = {-56, 10};
@@ -79,6 +91,48 @@ public class ClientHandler implements Runnable {
 
 	}
 	
+	private void processMessage(String[] message) throws IOException {
+		switch(message[0]) {
+		case "ADDFRIEND":
+			boolean status = addFriend(message[1]);
+			if(status) {
+				server.getClientHandler(message[1]).addFriend(this.username);
+				String[] replyToAddingFriend = new String[3];
+				replyToAddingFriend[0] = "ADDFRIEND";
+				replyToAddingFriend[1] = "SUCCESS";
+				replyToAddingFriend[2] = message[1];
+				byte[] replyToAddingFriendBytes = IMSProtocol.messageToBytes(replyToAddingFriend);
+				out.write(replyToAddingFriendBytes);
+				String[] replyToAddedFriend = new String[3];
+				replyToAddedFriend[0] = "ADDFRIEND";
+				replyToAddedFriend[1] = "SUCCESS";
+				replyToAddedFriend[2] = this.username;
+				byte[] replyToAddedFriendBytes = IMSProtocol.messageToBytes(replyToAddedFriend);
+				getFriend(message[1]).getOutputStream().write(replyToAddedFriendBytes);
+			} else {
+				String[] replyToAddingFriend = new String[3];
+				replyToAddingFriend[0] = "ADDFRIEND";
+				replyToAddingFriend[1] = "FAIL";
+				replyToAddingFriend[2] = message[1];
+				byte[] replyToAddingFriendBytes = IMSProtocol.messageToBytes(replyToAddingFriend);
+				out.write(replyToAddingFriendBytes);
+			}
+			break;
+		default:
+			break;	
+		}
+	}
+	
+
+	private boolean addFriend(String username) {
+		if(server.hasUserName(username)) {
+			friends.add(server.getClientHandler(username));
+			return true;
+		}
+		return false;
+	}
+
+
 	public void handshake() {
 		BufferedReader br = new BufferedReader(new InputStreamReader(in));
 		String line;
@@ -88,7 +142,7 @@ public class ClientHandler implements Runnable {
 			
 			byte[] b = line.getBytes();
 			if(line != null && b[0] != -56) {
-				String[] initParams = splitInitParams(b);
+				String[] initParams = IMSProtocol.bytesToMessage(b);
 				if(initParams[0].equals("REGISTER")) {
 					register(initParams);
 				} else {
@@ -131,9 +185,9 @@ public class ClientHandler implements Runnable {
 	
 	private void login(String[] initParams) {
 		try {
-			ClientHandler existingClient = this.server.getClientHandler(initParams[1], initParams[3]);
+			ClientHandler existingClient = this.server.getClientHandler(initParams[1]);
 			
-			if(existingClient == null) {
+			if(existingClient == null || !existingClient.getPassword().equals(initParams[3]) || !existingClient.isTerminated()) {
 				// fail to login
 				out.write("FAIL\n".getBytes());
 				in.close();
@@ -154,35 +208,19 @@ public class ClientHandler implements Runnable {
 		
 	}
 	
-	private String[] splitInitParams(byte[] initParams) {
-		int stringsCount = 0;
-		byte[] b = {-55};
-		
-		for(int i = 0; i < initParams.length; i++) {
-			if(initParams[i] == b[0]) {
-				stringsCount++;
+	private ClientHandler getFriend(String username) {
+		for(ClientHandler ch : friends) {
+			if(ch.getUsername().equals(username)) {
+				return ch;
 			}
 		}
-		
-		String[] splitted = new String[stringsCount];
-		int stringNum = 0;
-		StringBuilder sb = new StringBuilder();
-		
-		for(int i = 1; i < initParams.length; i++) {
-			if(initParams[i] == b[0]) {
-				splitted[stringNum++] = sb.toString();
-				sb = new StringBuilder();
-			} else {
-				sb.append((char) initParams[i]);
-			}
-		}
-		splitted[stringNum] = sb.toString();
-		return splitted;
+		return null;
 	}
 	
 	public String getUsername() { return this.username;	}
 	public String getEmail() { return this.email; }
 	public String getPassword() { return this.password; }
+	public OutputStream getOutputStream() { return this.out; }
 	public boolean isTerminated() { return this.terminated; }
 	
 	public void setSocket(Socket s) { this.socket = s; }
