@@ -94,8 +94,8 @@ public class ClientHandler implements Runnable {
 	private void processMessage(String[] message) throws IOException {
 		switch(message[0]) {
 		case "ADDFRIEND":
-			boolean status = addFriend(message[1]);
-			if(status) {
+			boolean addStatus = addFriend(message[1]);
+			if(addStatus) {
 				server.getClientHandler(message[1]).addFriend(this.username);
 				String[] replyToAddingFriend = new String[3];
 				replyToAddingFriend[0] = "ADDFRIEND";
@@ -118,6 +118,31 @@ public class ClientHandler implements Runnable {
 				out.write(replyToAddingFriendBytes);
 			}
 			break;
+		case "REMOVEFRIEND":
+			boolean removeStatus = removeFriend(message[1]);
+			if(removeStatus) {
+				server.getClientHandler(message[1]).removeFriend(this.username);
+				String[] replyToRemovingFriend = new String[3];
+				replyToRemovingFriend[0] = "REMOVEFRIEND";
+				replyToRemovingFriend[1] = "SUCCESS";
+				replyToRemovingFriend[2] = message[1];
+				byte[] replyToRemovingFriendBytes = IMSProtocol.messageToBytes(replyToRemovingFriend);
+				out.write(replyToRemovingFriendBytes);
+				String[] replyToRemovedFriend = new String[3];
+				replyToRemovedFriend[0] = "REMOVEFRIEND";
+				replyToRemovedFriend[1] = "SUCCESS";
+				replyToRemovedFriend[2] = this.username;
+				byte[] replyToRemovedFriendBytes = IMSProtocol.messageToBytes(replyToRemovedFriend);
+				server.getClientHandler(message[1]).getOutputStream().write(replyToRemovedFriendBytes);
+			} else {
+				String[] replyToRemovingFriend = new String[3];
+				replyToRemovingFriend[0] = "REMOVEFRIEND";
+				replyToRemovingFriend[1] = "FAIL";
+				replyToRemovingFriend[2] = message[1];
+				byte[] replyToRemovingFriendBytes = IMSProtocol.messageToBytes(replyToRemovingFriend);
+				out.write(replyToRemovingFriendBytes);
+			}
+			break;
 		default:
 			break;	
 		}
@@ -126,7 +151,13 @@ public class ClientHandler implements Runnable {
 
 	private boolean addFriend(String username) {
 		if(server.hasUserName(username)) {
-			friends.add(server.getClientHandler(username));
+			return friends.add(server.getClientHandler(username));
+		}
+		return false;
+	}
+	
+	private boolean removeFriend(String username) {
+		if(friends.remove(getFriend(username))) {
 			return true;
 		}
 		return false;
