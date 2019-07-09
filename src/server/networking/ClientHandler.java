@@ -204,7 +204,10 @@ public class ClientHandler implements Runnable {
 				socket.close();
 			} else {
 				// register this
-				out.write("SUCCESS\n".getBytes());
+				String[] reply = new String[1];
+				reply[0] = "SUCCESS";
+				byte[] replyByte = IMSProtocol.messageToBytes(reply);
+				out.write(replyByte);
 				server.addToClients(this);
 				new Thread(this).start();
 			}
@@ -225,7 +228,14 @@ public class ClientHandler implements Runnable {
 				out.close();
 				socket.close();
 			} else {
-				out.write("SUCCESS\n".getBytes());
+				String[] successfullLogin = new String[existingClient.friends.size() + 1];
+				int runner = 0;
+				successfullLogin[runner++] = "SUCCESS";
+				for(ClientHandler ch : existingClient.friends) {
+					successfullLogin[runner++] = ch.getUsername();
+				}
+				byte[] successfullLoginBytes = IMSProtocol.messageToBytes(successfullLogin);
+				out.write(successfullLoginBytes);
 				existingClient.setSocket(this.socket);
 				existingClient.setInputStream(this.in);
 				existingClient.setOutputStream(this.out);
