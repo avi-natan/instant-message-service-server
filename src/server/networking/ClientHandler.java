@@ -143,6 +143,20 @@ public class ClientHandler implements Runnable {
 				out.write(replyToRemovingFriendBytes);
 			}
 			break;
+		case "SELECTFRIEND":
+			System.out.println("Needs to be implementd"); // TODO implement
+			break;
+		case "MESSAGE":
+			System.out.println("message from " + this.username + " to " + message[1]);
+			ClientHandler friend = getFriend(message[1]);
+			if(friend != null && !friend.isTerminated()) {
+				String[] replyMesasage = new String[3];
+				replyMesasage[0] = "MESSAGE";
+				replyMesasage[1] = this.username;
+				replyMesasage[2] = message[2];
+				friend.getOutputStream().write(IMSProtocol.messageToBytes(replyMesasage));
+			}
+			break;
 		default:
 			break;	
 		}
