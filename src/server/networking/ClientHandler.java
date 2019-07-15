@@ -6,7 +6,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import server.IMSServer;
@@ -28,6 +30,8 @@ public class ClientHandler implements Runnable {
 	
 	private Set<ClientHandler> friends;
 	
+	private Map<String, StringBuilder> friendsChats;
+	
 	public ClientHandler() {}
 
 	
@@ -45,6 +49,7 @@ public class ClientHandler implements Runnable {
 		}
 		this.terminated = false;
 		this.friends = new HashSet<>();
+		this.friendsChats = new HashMap<>();
 	}
 
 	@Override
@@ -143,18 +148,19 @@ public class ClientHandler implements Runnable {
 				out.write(replyToRemovingFriendBytes);
 			}
 			break;
-		case "SELECTFRIEND":
-			System.out.println("Needs to be implementd"); // TODO implement
-			break;
 		case "MESSAGE":
 			System.out.println("message from " + this.username + " to " + message[1]);
 			ClientHandler friend = getFriend(message[1]);
-			if(friend != null && !friend.isTerminated()) {
-				String[] replyMesasage = new String[3];
-				replyMesasage[0] = "MESSAGE";
-				replyMesasage[1] = this.username;
-				replyMesasage[2] = message[2];
-				friend.getOutputStream().write(IMSProtocol.messageToBytes(replyMesasage));
+			if(friend != null) {
+				this.friendsChats.get(message[1]).append(this.username + ": " + message[2] + System.lineSeparator());
+				friend.friendsChats.get(this.username).append(this.username + ": " + message[2] + System.lineSeparator());
+				if(!friend.isTerminated()) {
+					String[] replyMesasage = new String[3];
+					replyMesasage[0] = "MESSAGE";
+					replyMesasage[1] = this.username;
+					replyMesasage[2] = message[2];
+					friend.getOutputStream().write(IMSProtocol.messageToBytes(replyMesasage));
+				}
 			}
 			break;
 		default:
@@ -164,14 +170,16 @@ public class ClientHandler implements Runnable {
 	
 
 	private boolean addFriend(String username) {
-		if(server.hasUserName(username)) {
-			return friends.add(server.getClientHandler(username));
+		if(server.hasUserName(username) && friends.add(server.getClientHandler(username))) {
+			this.friendsChats.put(username, new StringBuilder());
+			return true;
 		}
 		return false;
 	}
 	
 	private boolean removeFriend(String username) {
 		if(friends.remove(getFriend(username))) {
+			this.friendsChats.remove(username);
 			return true;
 		}
 		return false;
@@ -242,11 +250,12 @@ public class ClientHandler implements Runnable {
 				out.close();
 				socket.close();
 			} else {
-				String[] successfullLogin = new String[existingClient.friends.size() + 1];
+				String[] successfullLogin = new String[1 + existingClient.friends.size() * 2];
 				int runner = 0;
 				successfullLogin[runner++] = "SUCCESS";
 				for(ClientHandler ch : existingClient.friends) {
 					successfullLogin[runner++] = ch.getUsername();
+					successfullLogin[runner++] = existingClient.friendsChats.get(ch.getUsername()).toString();
 				}
 				byte[] successfullLoginBytes = IMSProtocol.messageToBytes(successfullLogin);
 				out.write(successfullLoginBytes);

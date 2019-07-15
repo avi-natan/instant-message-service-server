@@ -2,7 +2,8 @@ package server.protocol;
 
 public class IMSProtocol {
 	
-private static final byte DELIM = (byte)-55;
+	private static final byte DELIM = (byte)-55;
+	private static final byte NEWLINEHOLDER = (byte)-57;
 	
 	public static String[] bytesToMessage(byte[] bytes) {
 		int stringsCount = 0;
@@ -21,7 +22,15 @@ private static final byte DELIM = (byte)-55;
 				message[stringNum++] = sb.toString();
 				sb = new StringBuilder();
 			} else {
-				sb.append((char) bytes[i]);
+				if(bytes[i] == NEWLINEHOLDER && bytes[i+1] == NEWLINEHOLDER) {
+					sb.append('\r');
+					i++;
+					sb.append('\n');
+				} else if(bytes[i] == NEWLINEHOLDER) {
+					sb.append('\n');
+				} else {
+					sb.append((char) bytes[i]);
+				}
 			}
 		}
 		message[stringNum] = sb.toString();
@@ -42,7 +51,11 @@ private static final byte DELIM = (byte)-55;
 			bytes[runner++] = DELIM;
 			byte[] messageIBytes = message[i].getBytes();
 			for(int j = 0; j < messageIBytes.length; j++) {
-				bytes[runner++] = messageIBytes[j];
+				if(messageIBytes[j] == (byte)10 || messageIBytes[j] == (byte)13) {
+					bytes[runner++] = NEWLINEHOLDER;
+				} else {
+					bytes[runner++] = messageIBytes[j];
+				}
 			}
 		}
 		
