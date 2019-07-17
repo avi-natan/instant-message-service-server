@@ -14,6 +14,14 @@ import java.util.Set;
 import server.IMSServer;
 import server.protocol.IMSProtocol;
 
+/**
+ * The class that is responsible to save client specific data on the server,
+ * thus maintaining client state even when the client logs out. It also manages
+ * the server side of the communication with its client side counterpart (ClientConnection).
+ * 
+ * @author Avi
+ *
+ */
 public class ClientHandler implements Runnable {
 	
 	private IMSServer server;
@@ -32,9 +40,34 @@ public class ClientHandler implements Runnable {
 	
 	private Map<String, StringBuilder> friendsChats;
 	
+	/**
+	 * Empty constructor.
+	 * <br>
+	 * <br>
+	 * <b>TODO:</b> maybe delete this or something.
+	 * 
+	 */
 	public ClientHandler() {}
 
-	
+	/**
+	 * The constructor. Called from the {@link IMSServer#run} loop when a new
+	 * connection to the server is accepted. It constructs the ClientHandler
+	 * with the given parameters and tries to open a socket and get its input
+	 * and output streams (On error it throws exception).<br>
+	 * <br>
+	 * After constructing, the {@link #handshake} method is called, where the client
+	 * initialization completes, after receiving more initialization data from the
+	 * client.<br>
+	 * <br>
+	 * The initialization varies depending on the IMS protocol keyword received
+	 * by the handshake method ("REGISTER"/"LOGIN").
+	 * 
+	 * @param server - A pointer to the server instance that created this handler.
+	 * @param username - The username given by the user.
+	 * @param email - the email given by the user. Empty if the IMSP keywords was "LOGIN".
+	 * @param password - The password given by the user.
+	 * @param socket - The socket created when the server socket accepted the connection.
+	 */
 	public ClientHandler(IMSServer server, String username, String email, String password, Socket socket) {
 		this.server = server;
 		this.username = username;
@@ -52,6 +85,16 @@ public class ClientHandler implements Runnable {
 		this.friendsChats = new HashMap<>();
 	}
 
+	/**
+	 * The main loop of the connection handler. The connection handler starts with sending
+	 * a welcome message to its client side counterpart and then starts listening in this loop
+	 * for any messages received from its client side counterpart. After parsing a message
+	 * according to the {@link IMSProtocol} standard, it uses {@link #processMessage} to
+	 * process the message accordingly.
+	 * <br>
+	 * The method runs while it is not terminated, as indicated by the terminated boolean member.
+	 * 
+	 */
 	@Override
 	public void run() {
 		try {
@@ -96,6 +139,13 @@ public class ClientHandler implements Runnable {
 
 	}
 	
+	/**
+	 * Process a message received by the input stream, and sends back
+	 * a reply message indicating the result of the message processing.
+	 * 
+	 * @param message - The message received by the input stream.
+	 * @throws IOException - If an I/O error occurs.
+	 */
 	private void processMessage(String[] message) throws IOException {
 		switch(message[0]) {
 		case "ADDFRIEND":
@@ -168,7 +218,16 @@ public class ClientHandler implements Runnable {
 		}
 	}
 	
-
+	/**
+	 * Adds a ClientHandler that his username is the same as the input username
+	 * to this ClientHandler's friends set. The ClientHandler with the same
+	 * username has to exist in the server's registered clients set in order
+	 * for the operation to succeed. Also this ClientHandler must not already
+	 * have a friend with the same username.
+	 * 
+	 * @param username - the name of the friend to be added.
+	 * @return True if the adding succeeded.
+	 */
 	private boolean addFriend(String username) {
 		if(server.hasUserName(username) && friends.add(server.getClientHandler(username))) {
 			this.friendsChats.put(username, new StringBuilder());
@@ -177,6 +236,13 @@ public class ClientHandler implements Runnable {
 		return false;
 	}
 	
+	/**
+	 * Removes the friend specified in the input from this ClientHandler friends,
+	 * and removes the chat history saved for the said friend.
+	 * 
+	 * @param username - The name of the friend to be removed.
+	 * @return True if the removing succeeded.
+	 */
 	private boolean removeFriend(String username) {
 		if(friends.remove(getFriend(username))) {
 			this.friendsChats.remove(username);
@@ -185,7 +251,17 @@ public class ClientHandler implements Runnable {
 		return false;
 	}
 
-
+	/**
+	 * Completes the ClientConnection initialization by 
+	 * suppling it with data saved in this side of the connection.<br>
+	 * If the IMS protocol keyword is "REGISTER", and the registration
+	 * is successful (i.e. {@link #register} returned true), then the
+	 * reply sent will be "SUCCESS". If the the IMS protocol keyword is
+	 * "LOGIN", and the login is successful ({@link #login}), then the reply
+	 * sent will be "SUCCESS" followed by an array of this client friends
+	 * names and their chat history, all in byte array that can be converted
+	 * to string array using the {@link IMSProtocol}.
+	 */
 	public void handshake() {
 		BufferedReader br = new BufferedReader(new InputStreamReader(in));
 		String line;
@@ -212,6 +288,20 @@ public class ClientHandler implements Runnable {
 		}
 	}
 	
+	/**
+	 * Registers a new user to the IMS service according to the parameters
+	 * given. The received parameters are in the following format:<br>
+	 * <br>
+	 * REGISTER &lt;username&gt; &lt;email&gt; &lt;password&gt; <br>
+	 * <br>
+	 * The client handler checks if there is no existing ClientHandler with
+	 * the same username or email, and if there isn't it sends a success
+	 * message to its client-side counterpart, adds himself to the registered
+	 * clients in the server class and finally starts his {@link #run} loop
+	 * in a new thread. 
+	 * 
+	 * @param initParams - Input parameters for the new user.
+	 */
 	private void register(String[] initParams) {
 		try {
 			this.username = initParams[1];
@@ -239,6 +329,34 @@ public class ClientHandler implements Runnable {
 		}
 	}
 	
+	/**
+	 * Logs in an existing user according to the parameters given.
+	 * The received parameters are in the following format:<br>
+	 * <br>
+	 * LOGIN &lt;username&gt; &lt;email&gt; &lt;password&gt; <br>
+	 * <br>
+	 * <b>Note</b> - The email field will be empty.<br>
+	 * <br>
+	 * The client handler tries to get from the server the ClientHandler that
+	 * his username is the same as in the parameters given. If there is no
+	 * such handler (return value was null) or its password is not the same as
+	 * in the parameters, or it is not terminated, indicating that a client is
+	 * already connected to the IMS, it will return a "FAIL" message to the
+	 * client trying to login, then closes the connections and terminates.<br>
+	 * <br>
+	 * Otherwise, this handler will construct a reply message with the friends
+	 * and friends chats of the logging client, in order to complete the client-side
+	 * client connection initialization. the message will be in this format:<br>
+	 * <br>
+	 * SUCCESS &lt;friend 1&gt; &lt;friend1 chat history&gt; &lt;friend 2&gt; &lt;friend2 chat history&gt;...<br>
+	 * <br>
+	 * After the message was sent, this client handler will set his socket and
+	 * streams to be the existing client handler's ones, and will start the
+	 * existing client handler's {@link #run} loop in a new thread. 
+	 * 
+	 * 
+	 * @param initParams - Input parameters for the registered user.
+	 */
 	private void login(String[] initParams) {
 		try {
 			ClientHandler existingClient = this.server.getClientHandler(initParams[1]);
@@ -272,6 +390,12 @@ public class ClientHandler implements Runnable {
 		
 	}
 	
+	/**
+	 * Gets the client handler for the requested username string.
+	 *  
+	 * @param username - The username for which the client handler is requested.
+	 * @return The corresponding client handler or null if it's not found.
+	 */
 	private ClientHandler getFriend(String username) {
 		for(ClientHandler ch : friends) {
 			if(ch.getUsername().equals(username)) {
@@ -281,12 +405,18 @@ public class ClientHandler implements Runnable {
 		return null;
 	}
 	
+	/*
+	 * Getters
+	 */
 	public String getUsername() { return this.username;	}
 	public String getEmail() { return this.email; }
 	public String getPassword() { return this.password; }
 	public OutputStream getOutputStream() { return this.out; }
 	public boolean isTerminated() { return this.terminated; }
 	
+	/*
+	 * Setters
+	 */
 	public void setSocket(Socket s) { this.socket = s; }
 	public void setInputStream(InputStream in) { this.in = in; }
 	public void setOutputStream(OutputStream out) {this.out = out; };
