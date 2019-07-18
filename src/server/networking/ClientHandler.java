@@ -41,15 +41,6 @@ public class ClientHandler implements Runnable {
 	private Map<String, StringBuilder> friendsChats;
 	
 	/**
-	 * Empty constructor.
-	 * <br>
-	 * <br>
-	 * <b>TODO:</b> maybe delete this or something.
-	 * 
-	 */
-	public ClientHandler() {}
-
-	/**
 	 * The constructor. Called from the {@link IMSServer#run} loop when a new
 	 * connection to the server is accepted. It constructs the ClientHandler
 	 * with the given parameters and tries to open a socket and get its input
@@ -214,7 +205,7 @@ public class ClientHandler implements Runnable {
 			}
 			break;
 		default:
-			break;	
+			break;
 		}
 	}
 	
