@@ -114,7 +114,7 @@ public class ClientHandler implements Runnable {
 				}
 			} catch (IOException e) {
 				e.printStackTrace();
-				terminated = true;
+				//terminated = true; TODO: figure out if it should be closed in that case
 			}
 		}
 		
@@ -143,18 +143,22 @@ public class ClientHandler implements Runnable {
 			boolean addStatus = addFriend(message[1]);
 			if(addStatus) {
 				server.getClientHandler(message[1]).addFriend(this.username);
+				this.friendsChats.get(message[1]).append("ADDFRIEND SUCCESS: " + message[1] + System.lineSeparator());
 				String[] replyToAddingFriend = new String[3];
 				replyToAddingFriend[0] = "ADDFRIEND";
 				replyToAddingFriend[1] = "SUCCESS";
 				replyToAddingFriend[2] = message[1];
 				byte[] replyToAddingFriendBytes = IMSProtocol.messageToBytes(replyToAddingFriend);
 				out.write(replyToAddingFriendBytes);
-				String[] replyToAddedFriend = new String[3];
-				replyToAddedFriend[0] = "ADDFRIEND";
-				replyToAddedFriend[1] = "SUCCESS";
-				replyToAddedFriend[2] = this.username;
-				byte[] replyToAddedFriendBytes = IMSProtocol.messageToBytes(replyToAddedFriend);
-				getFriend(message[1]).getOutputStream().write(replyToAddedFriendBytes);
+				getFriend(message[1]).friendsChats.get(this.username).append("ADDFRIEND SUCCESS: " + this.username + System.lineSeparator());
+				if(!getFriend(message[1]).isTerminated()) {
+					String[] replyToAddedFriend = new String[3];
+					replyToAddedFriend[0] = "ADDFRIEND";
+					replyToAddedFriend[1] = "SUCCESS";
+					replyToAddedFriend[2] = this.username;
+					byte[] replyToAddedFriendBytes = IMSProtocol.messageToBytes(replyToAddedFriend);
+					getFriend(message[1]).getOutputStream().write(replyToAddedFriendBytes);
+				}
 			} else {
 				String[] replyToAddingFriend = new String[3];
 				replyToAddingFriend[0] = "ADDFRIEND";
@@ -301,7 +305,10 @@ public class ClientHandler implements Runnable {
 			
 			if(server.hasUserName(this.username) || server.hasEmail(this.email)) {
 				// fail the register
-				out.write("FAIL\n".getBytes());
+				String[] reply = new String[1];
+				reply[0] = "FAIL";
+				byte[] replyByte = IMSProtocol.messageToBytes(reply);
+				out.write(replyByte);
 				in.close();
 				out.close();
 				socket.close();
@@ -354,7 +361,10 @@ public class ClientHandler implements Runnable {
 			
 			if(existingClient == null || !existingClient.getPassword().equals(initParams[3]) || !existingClient.isTerminated()) {
 				// fail to login
-				out.write("FAIL\n".getBytes());
+				String[] reply = new String[1];
+				reply[0] = "FAIL";
+				byte[] replyByte = IMSProtocol.messageToBytes(reply);
+				out.write(replyByte);
 				in.close();
 				out.close();
 				socket.close();
