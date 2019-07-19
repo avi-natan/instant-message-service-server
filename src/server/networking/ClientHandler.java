@@ -178,12 +178,14 @@ public class ClientHandler implements Runnable {
 				replyToRemovingFriend[2] = message[1];
 				byte[] replyToRemovingFriendBytes = IMSProtocol.messageToBytes(replyToRemovingFriend);
 				out.write(replyToRemovingFriendBytes);
-				String[] replyToRemovedFriend = new String[3];
-				replyToRemovedFriend[0] = "REMOVEFRIEND";
-				replyToRemovedFriend[1] = "SUCCESS";
-				replyToRemovedFriend[2] = this.username;
-				byte[] replyToRemovedFriendBytes = IMSProtocol.messageToBytes(replyToRemovedFriend);
-				server.getClientHandler(message[1]).getOutputStream().write(replyToRemovedFriendBytes);
+				if(!server.getClientHandler(message[1]).isTerminated()) {
+					String[] replyToRemovedFriend = new String[3];
+					replyToRemovedFriend[0] = "REMOVEFRIEND";
+					replyToRemovedFriend[1] = "SUCCESS";
+					replyToRemovedFriend[2] = this.username;
+					byte[] replyToRemovedFriendBytes = IMSProtocol.messageToBytes(replyToRemovedFriend);
+					server.getClientHandler(message[1]).getOutputStream().write(replyToRemovedFriendBytes);
+				}
 			} else {
 				String[] replyToRemovingFriend = new String[3];
 				replyToRemovingFriend[0] = "REMOVEFRIEND";
